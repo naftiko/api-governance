@@ -1,0 +1,89 @@
+naftiko: "0.5"
+info:
+  label: "MCP Registry"
+  description: "MCP server registry — server manifests, vendor policy, usage stats, registry sync"
+  tags:
+    - mcp
+    - shared
+    - registry
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "mcp-registry"
+    type: "http"
+    baseUri: "{{MCP_REGISTRY_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.MCP_REGISTRY_TOKEN"
+    resources:
+      - name: "get-server-manifest"
+        path: "/api/v1/servers/{server_url}"
+        operations:
+          - method: GET
+            name: "get-server-manifest"
+            inputParameters:
+              - name: server_url
+                in: path
+                type: string
+            outputParameters:
+              - name: tools
+                in: body
+                path: "$.tools"
+                type: array
+              - name: endpoints
+                in: body
+                path: "$.endpoints"
+                type: array
+              - name: tool_count
+                in: body
+                path: "$.tool_count"
+                type: integer
+      - name: "get-usage-stats"
+        path: "/api/v1/stats"
+        operations:
+          - method: POST
+            name: "get-usage-stats"
+            inputParameters:
+              - name: servers
+                in: body
+                type: array
+            outputParameters:
+              - name: stats
+                in: body
+                path: "$.stats"
+                type: array
+      - name: "check-vendor-policy"
+        path: "/api/v1/policy/vendor"
+        operations:
+          - method: POST
+            name: "check-vendor-policy"
+            inputParameters:
+              - name: vendor
+                in: body
+                type: string
+              - name: server_url
+                in: body
+                type: string
+            outputParameters:
+              - name: status
+                in: body
+                path: "$.status"
+                type: string
+      - name: "compute-registry-diff"
+        path: "/api/v1/registry/diff"
+        operations:
+          - method: POST
+            name: "compute-registry-diff"
+            inputParameters:
+              - name: approved
+                in: body
+                type: array
+              - name: current_github
+                in: body
+                type: array
+            outputParameters:
+              - name: diff
+                in: body
+                path: "$"
+                type: object

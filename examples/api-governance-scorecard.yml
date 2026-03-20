@@ -1,0 +1,122 @@
+naftiko: "0.5"
+info:
+  label: "API Governance Scorecard"
+  description: "Generate governance scorecards for APIs, capabilities, and MCP servers. Evaluates documentation quality, security posture, lifecycle compliance, consumer satisfaction, and operational health to produce an actionable governance score per entity."
+  tags:
+    - api-governance
+    - scorecard
+    - quality
+    - compliance
+    - backstage
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "get-governance-scorecard"
+          description: "Generate a governance scorecard for a specific API or capability. Scores across five dimensions: documentation (spec completeness, descriptions), security (auth, data classification), lifecycle (versioning, deprecation), operational health (uptime, latency), and adoption (consumer count, reuse)."
+          inputParameters:
+            - name: entity_ref
+              in: body
+              type: string
+              description: "Backstage entity reference"
+            - name: include_recommendations
+              in: body
+              type: boolean
+              description: "Include actionable improvement recommendations"
+          steps:
+            - name: get-entity
+              type: call
+              call: "backstage.get-entity"
+              with:
+                entity_ref: "{{entity_ref}}"
+            - name: score-documentation
+              type: call
+              call: "spectral.lint"
+              with:
+                content: "{{get-entity.spec}}"
+                ruleset: "documentation-quality"
+            - name: score-security
+              type: call
+              call: "security-scanner.assess-api"
+              with:
+                entity: "{{get-entity}}"
+            - name: score-operations
+              type: call
+              call: "api-gateway.get-health-metrics"
+              with:
+                api_ref: "{{entity_ref}}"
+                time_range: "30d"
+            - name: score-adoption
+              type: call
+              call: "backstage.get-entity-relations"
+              with:
+                entity_ref: "{{entity_ref}}"
+                relation: "consumedBy"
+          outputParameters:
+            - name: overall_score
+              type: number
+              description: "Composite governance score 0-100"
+            - name: grade
+              type: string
+              description: "A, B, C, D, F"
+            - name: dimensions
+              type: object
+              description: "Score breakdown: documentation, security, lifecycle, operations, adoption"
+            - name: recommendations
+              type: array
+              description: "Prioritized list of improvements to raise the score"
+            - name: trend
+              type: string
+              description: "improving, stable, declining"
+
+        - name: "get-domain-scorecard"
+          description: "Generate an aggregate governance scorecard for an entire domain or team. Shows distribution of scores across all APIs, highlights outliers, and identifies systemic governance gaps."
+          inputParameters:
+            - name: domain
+              in: body
+              type: string
+            - name: team
+              in: body
+              type: string
+          steps:
+            - name: get-domain-entities
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,spec.domain={{domain}},spec.owner={{team}}"
+            - name: get-existing-scorecards
+              type: call
+              call: "backstage.get-scorecards-batch"
+              with:
+                entities: "{{get-domain-entities.items}}"
+          outputParameters:
+            - name: domain_score
+              type: number
+            - name: entity_count
+              type: integer
+            - name: score_distribution
+              type: object
+              description: "Count of entities in each grade band"
+            - name: lowest_scoring
+              type: array
+              description: "Bottom 5 entities needing attention"
+            - name: highest_scoring
+              type: array
+              description: "Top 5 entities as exemplars"
+            - name: systemic_gaps
+              type: array
+              description: "Common governance gaps across the domain"
+
+  consumes:
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-spectral.yml"
+      as: "spectral"
+    - import: "consumes-security-scanner.yml"
+      as: "security-scanner"
+    - import: "consumes-api-gateway.yml"
+      as: "api-gateway"

@@ -1,0 +1,112 @@
+naftiko: "0.5"
+info:
+  label: "API Spec Validation"
+  description: "Validate OpenAPI, AsyncAPI, and Naftiko capability specs against organizational Spectral rulesets and JSON Schema. Returns linting violations, severity, and suggested fixes aligned with the organization's golden path standards."
+  tags:
+    - api-governance
+    - validation
+    - spectral
+    - linting
+    - golden-path
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "validate-api-spec"
+          description: "Validate an API specification against organizational Spectral rulesets and schema. Supports OpenAPI 3.x, AsyncAPI 2.x/3.x, and Naftiko capability specs. Returns violations grouped by severity with remediation guidance."
+          inputParameters:
+            - name: spec_url
+              in: body
+              type: string
+              description: "URL or path to the specification file"
+            - name: spec_type
+              in: body
+              type: string
+              description: "Type of spec: openapi, asyncapi, naftiko"
+            - name: ruleset
+              in: body
+              type: string
+              description: "Ruleset to apply: default, strict, minimal"
+            - name: repo_ref
+              in: body
+              type: string
+              description: "GitHub repo reference for fetching the spec from source"
+          steps:
+            - name: fetch-spec
+              type: call
+              call: "github.get-file-content"
+              with:
+                repo: "{{repo_ref}}"
+                path: "{{spec_url}}"
+            - name: run-spectral-lint
+              type: call
+              call: "spectral.lint"
+              with:
+                content: "{{fetch-spec.content}}"
+                ruleset: "{{ruleset}}"
+                format: "{{spec_type}}"
+            - name: run-schema-validation
+              type: call
+              call: "spectral.validate-schema"
+              with:
+                content: "{{fetch-spec.content}}"
+                schema_type: "{{spec_type}}"
+          outputParameters:
+            - name: violations
+              type: array
+              description: "List of violations with severity, path, message, and fix suggestion"
+            - name: summary
+              type: object
+              description: "Counts by severity: error, warning, info, hint"
+            - name: is_valid
+              type: boolean
+            - name: score
+              type: number
+              description: "Governance compliance score 0-100"
+
+        - name: "validate-spec-batch"
+          description: "Validate all API specs in a repository against organizational rulesets. Scans for OpenAPI, AsyncAPI, and Naftiko files and returns an aggregate compliance report."
+          inputParameters:
+            - name: repo_ref
+              in: body
+              type: string
+            - name: ruleset
+              in: body
+              type: string
+            - name: branch
+              in: body
+              type: string
+              description: "Branch to scan, defaults to main"
+          steps:
+            - name: discover-specs
+              type: call
+              call: "github.search-files"
+              with:
+                repo: "{{repo_ref}}"
+                ref: "{{branch}}"
+                pattern: "**/*.{yaml,yml,json}"
+                filter: "openapi|asyncapi|naftiko"
+            - name: lint-all
+              type: call
+              call: "spectral.lint-batch"
+              with:
+                files: "{{discover-specs.files}}"
+                ruleset: "{{ruleset}}"
+          outputParameters:
+            - name: results
+              type: array
+              description: "Per-file validation results"
+            - name: aggregate_score
+              type: number
+            - name: total_violations
+              type: integer
+
+  consumes:
+    - import: "shared-github.yml"
+      as: "github"
+    - import: "consumes-spectral.yml"
+      as: "spectral"

@@ -1,0 +1,132 @@
+naftiko: "0.5"
+info:
+  label: "Capability Cost Attribution"
+  description: "FinOps for API and MCP capability consumption. Tracks costs across API gateway calls, MCP tool invocations, LLM token usage, and cloud compute. Attributes costs to teams, domains, and individual capabilities with budget alerting and chargeback reporting."
+  tags:
+    - api-governance
+    - finops
+    - cost
+    - attribution
+    - budget
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "get-cost-attribution"
+          description: "Get cost attribution for API and MCP capability usage. Breaks down costs by team, domain, capability, and service tier. Includes API gateway costs, LLM token costs, and compute costs per capability."
+          inputParameters:
+            - name: time_range
+              in: body
+              type: string
+              description: "Time range: 7d, 30d, 90d"
+            - name: group_by
+              in: body
+              type: string
+              description: "Group by: team, domain, capability, service"
+            - name: domain
+              in: body
+              type: string
+            - name: team
+              in: body
+              type: string
+          steps:
+            - name: get-gateway-costs
+              type: call
+              call: "api-gateway.get-cost-metrics"
+              with:
+                time_range: "{{time_range}}"
+                group_by: "{{group_by}}"
+                domain: "{{domain}}"
+                team: "{{team}}"
+            - name: get-llm-costs
+              type: call
+              call: "llm-gateway.get-token-costs"
+              with:
+                time_range: "{{time_range}}"
+                group_by: "{{group_by}}"
+            - name: get-compute-costs
+              type: call
+              call: "cloud-billing.get-capability-costs"
+              with:
+                time_range: "{{time_range}}"
+                group_by: "{{group_by}}"
+                labels: "naftiko-capability"
+          outputParameters:
+            - name: total_cost
+              type: number
+            - name: cost_breakdown
+              type: object
+              description: "Costs grouped by the requested dimension"
+            - name: api_gateway_cost
+              type: number
+            - name: llm_token_cost
+              type: number
+            - name: compute_cost
+              type: number
+            - name: cost_trend
+              type: array
+              description: "Daily cost trend over the time range"
+            - name: top_cost_drivers
+              type: array
+
+        - name: "check-budget-status"
+          description: "Check budget status for teams and domains against their allocated API/AI spending limits. Returns current spend, remaining budget, burn rate, and projected overage."
+          inputParameters:
+            - name: team
+              in: body
+              type: string
+            - name: domain
+              in: body
+              type: string
+            - name: budget_period
+              in: body
+              type: string
+              description: "monthly, quarterly"
+          steps:
+            - name: get-budget-allocation
+              type: call
+              call: "backstage.get-entity-annotations"
+              with:
+                filter: "kind=group,metadata.name={{team}}"
+                annotations: "budget/api-spend,budget/ai-spend,budget/period"
+            - name: get-current-spend
+              type: call
+              call: "api-gateway.get-cost-metrics"
+              with:
+                time_range: "{{budget_period}}"
+                team: "{{team}}"
+            - name: get-llm-spend
+              type: call
+              call: "llm-gateway.get-token-costs"
+              with:
+                time_range: "{{budget_period}}"
+                team: "{{team}}"
+          outputParameters:
+            - name: budget_allocated
+              type: number
+            - name: current_spend
+              type: number
+            - name: remaining_budget
+              type: number
+            - name: burn_rate
+              type: number
+              description: "Daily average spend"
+            - name: projected_overage
+              type: number
+            - name: status
+              type: string
+              description: "on-track, warning, over-budget"
+
+  consumes:
+    - import: "consumes-api-gateway.yml"
+      as: "api-gateway"
+    - import: "consumes-llm-gateway.yml"
+      as: "llm-gateway"
+    - import: "consumes-cloud-billing.yml"
+      as: "cloud-billing"
+    - import: "consumes-backstage.yml"
+      as: "backstage"

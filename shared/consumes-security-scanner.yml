@@ -1,0 +1,139 @@
+naftiko: "0.5"
+info:
+  label: "Security Scanner"
+  description: "API and MCP security scanning — OWASP analysis, auth assessment, data classification, MCP tool analysis"
+  tags:
+    - security
+    - shared
+    - scanner
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "security-scanner"
+    type: "http"
+    baseUri: "{{SECURITY_SCANNER_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.SECURITY_SCANNER_TOKEN"
+    resources:
+      - name: "analyze-mcp-tools"
+        path: "/api/v1/analyze/tools"
+        operations:
+          - method: POST
+            name: "analyze-mcp-tools"
+            inputParameters:
+              - name: tools
+                in: body
+                type: array
+              - name: vendor
+                in: body
+                type: string
+            outputParameters:
+              - name: risk_score
+                in: body
+                path: "$.risk_score"
+                type: number
+              - name: scopes
+                in: body
+                path: "$.scopes"
+                type: array
+      - name: "analyze-endpoints"
+        path: "/api/v1/analyze/endpoints"
+        operations:
+          - method: POST
+            name: "analyze-endpoints"
+            inputParameters:
+              - name: endpoints
+                in: body
+                type: array
+              - name: allowed_domains
+                in: body
+                type: array
+            outputParameters:
+              - name: risk_level
+                in: body
+                path: "$.risk_level"
+                type: string
+      - name: "classify-data"
+        path: "/api/v1/classify"
+        operations:
+          - method: POST
+            name: "classify-data"
+            inputParameters:
+              - name: tool_schemas
+                in: body
+                type: object
+              - name: data_classification_policy
+                in: body
+                type: string
+            outputParameters:
+              - name: classification
+                in: body
+                path: "$.classification"
+                type: object
+      - name: "scan-api-spec"
+        path: "/api/v1/scan/spec"
+        operations:
+          - method: POST
+            name: "scan-api-spec"
+            inputParameters:
+              - name: spec
+                in: body
+                type: object
+              - name: ruleset
+                in: body
+                type: string
+            outputParameters:
+              - name: findings
+                in: body
+                path: "$.findings"
+                type: array
+      - name: "assess-authentication"
+        path: "/api/v1/assess/auth"
+        operations:
+          - method: POST
+            name: "assess-authentication"
+            inputParameters:
+              - name: spec
+                in: body
+                type: object
+              - name: policy
+                in: body
+                type: string
+            outputParameters:
+              - name: assessment
+                in: body
+                path: "$.assessment"
+                type: object
+      - name: "assess-api"
+        path: "/api/v1/assess"
+        operations:
+          - method: POST
+            name: "assess-api"
+            inputParameters:
+              - name: entity
+                in: body
+                type: object
+            outputParameters:
+              - name: security_score
+                in: body
+                path: "$.score"
+                type: number
+      - name: "batch-assess"
+        path: "/api/v1/assess/batch"
+        operations:
+          - method: POST
+            name: "batch-assess"
+            inputParameters:
+              - name: entities
+                in: body
+                type: array
+              - name: minimum_risk_level
+                in: body
+                type: string
+            outputParameters:
+              - name: results
+                in: body
+                path: "$.results"
+                type: array

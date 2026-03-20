@@ -1,0 +1,36 @@
+naftiko: "0.5"
+info:
+  label: "Observability Platform"
+  description: "Distributed tracing and observability — trace retrieval for agent identity chain auditing"
+  tags:
+    - observability
+    - shared
+    - tracing
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "observability"
+    type: "http"
+    baseUri: "{{OBSERVABILITY_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.OBSERVABILITY_TOKEN"
+    resources:
+      - name: "get-distributed-trace"
+        path: "/api/v1/traces"
+        operations:
+          - method: GET
+            name: "get-distributed-trace"
+            inputParameters:
+              - name: workflow_id
+                in: query
+                type: string
+              - name: time_range
+                in: query
+                type: string
+            outputParameters:
+              - name: spans
+                in: body
+                path: "$.spans"
+                type: array

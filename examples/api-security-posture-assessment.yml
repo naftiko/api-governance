@@ -1,0 +1,130 @@
+naftiko: "0.5"
+info:
+  label: "API Security Posture Assessment"
+  description: "Assess the security posture of APIs and capabilities across the organization. Evaluates authentication mechanisms, authorization patterns, data classification, encryption, rate limiting, and compliance with security policies like OWASP API Top 10."
+  tags:
+    - api-governance
+    - security
+    - posture
+    - owasp
+    - compliance
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "assess-api-security"
+          description: "Perform a security posture assessment for a specific API. Checks authentication strength, authorization model, data exposure, injection risks, rate limiting, and alignment with OWASP API Security Top 10 and organizational policies."
+          inputParameters:
+            - name: entity_ref
+              in: body
+              type: string
+              description: "Backstage entity reference for the API"
+            - name: spec_url
+              in: body
+              type: string
+              description: "URL to the OpenAPI/AsyncAPI spec"
+            - name: include_runtime_check
+              in: body
+              type: boolean
+              description: "Include runtime security checks from gateway telemetry"
+          steps:
+            - name: get-api-spec
+              type: call
+              call: "backstage.get-entity"
+              with:
+                entity_ref: "{{entity_ref}}"
+            - name: scan-spec-security
+              type: call
+              call: "security-scanner.scan-api-spec"
+              with:
+                spec: "{{get-api-spec.spec}}"
+                ruleset: "owasp-api-top-10"
+            - name: check-auth-strength
+              type: call
+              call: "security-scanner.assess-authentication"
+              with:
+                spec: "{{get-api-spec.spec}}"
+                policy: "{{AUTH_POLICY}}"
+            - name: classify-data-exposure
+              type: call
+              call: "security-scanner.classify-data"
+              with:
+                tool_schemas: "{{get-api-spec.spec.paths}}"
+                data_classification_policy: "{{DATA_CLASSIFICATION_POLICY}}"
+            - name: get-runtime-findings
+              type: call
+              call: "api-gateway.get-security-events"
+              with:
+                api_ref: "{{entity_ref}}"
+                time_range: "30d"
+          outputParameters:
+            - name: security_score
+              type: number
+              description: "Overall security score 0-100"
+            - name: risk_level
+              type: string
+              description: "low, medium, high, critical"
+            - name: owasp_findings
+              type: array
+              description: "Findings mapped to OWASP API Top 10 categories"
+            - name: auth_assessment
+              type: object
+              description: "Authentication and authorization assessment"
+            - name: data_classification
+              type: object
+              description: "Data exposure and classification findings"
+            - name: runtime_findings
+              type: array
+              description: "Security events from runtime telemetry"
+            - name: remediation_actions
+              type: array
+
+        - name: "assess-portfolio-security"
+          description: "Assess security posture across all APIs in a domain or the entire portfolio. Identifies systemic security weaknesses, APIs with critical findings, and produces an aggregate risk view for security leadership."
+          inputParameters:
+            - name: domain
+              in: body
+              type: string
+            - name: minimum_risk_level
+              in: body
+              type: string
+              description: "Only include findings at or above this level: low, medium, high, critical"
+          steps:
+            - name: get-all-apis
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,spec.domain={{domain}}"
+            - name: batch-assess
+              type: call
+              call: "security-scanner.batch-assess"
+              with:
+                entities: "{{get-all-apis.items}}"
+                minimum_risk_level: "{{minimum_risk_level}}"
+          outputParameters:
+            - name: portfolio_risk_score
+              type: number
+            - name: apis_assessed
+              type: integer
+            - name: critical_findings
+              type: array
+            - name: risk_distribution
+              type: object
+              description: "Count of APIs by risk level"
+            - name: systemic_weaknesses
+              type: array
+              description: "Common security patterns across multiple APIs"
+            - name: top_risks
+              type: array
+
+  consumes:
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-security-scanner.yml"
+      as: "security-scanner"
+    - import: "consumes-api-gateway.yml"
+      as: "api-gateway"

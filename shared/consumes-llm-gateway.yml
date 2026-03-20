@@ -1,0 +1,39 @@
+naftiko: "0.5"
+info:
+  label: "LLM Gateway"
+  description: "LLM gateway cost tracking — token usage and cost attribution by team and capability"
+  tags:
+    - llm
+    - shared
+    - finops
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "llm-gateway"
+    type: "http"
+    baseUri: "{{LLM_GATEWAY_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.LLM_GATEWAY_TOKEN"
+    resources:
+      - name: "get-token-costs"
+        path: "/api/v1/costs"
+        operations:
+          - method: POST
+            name: "get-token-costs"
+            inputParameters:
+              - name: time_range
+                in: body
+                type: string
+              - name: group_by
+                in: body
+                type: string
+              - name: team
+                in: body
+                type: string
+            outputParameters:
+              - name: token_costs
+                in: body
+                path: "$.costs"
+                type: object

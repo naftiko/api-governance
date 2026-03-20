@@ -1,0 +1,122 @@
+naftiko: "0.5"
+info:
+  label: "API Gateway Analytics"
+  description: "API gateway analytics — usage metrics, cost metrics, health metrics, security events, API status"
+  tags:
+    - api-gateway
+    - shared
+    - analytics
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "api-gateway"
+    type: "http"
+    baseUri: "{{API_GATEWAY_ANALYTICS_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.API_GATEWAY_TOKEN"
+    resources:
+      - name: "get-usage-metrics"
+        path: "/api/v1/analytics/usage"
+        operations:
+          - method: POST
+            name: "get-usage-metrics"
+            inputParameters:
+              - name: apis
+                in: body
+                type: array
+              - name: time_range
+                in: body
+                type: string
+              - name: group_by
+                in: body
+                type: string
+            outputParameters:
+              - name: metrics
+                in: body
+                path: "$.metrics"
+                type: array
+              - name: totals
+                in: body
+                path: "$.totals"
+                type: object
+      - name: "get-cost-metrics"
+        path: "/api/v1/analytics/costs"
+        operations:
+          - method: POST
+            name: "get-cost-metrics"
+            inputParameters:
+              - name: time_range
+                in: body
+                type: string
+              - name: group_by
+                in: body
+                type: string
+              - name: domain
+                in: body
+                type: string
+              - name: team
+                in: body
+                type: string
+            outputParameters:
+              - name: costs
+                in: body
+                path: "$.costs"
+                type: object
+      - name: "get-health-metrics"
+        path: "/api/v1/analytics/health"
+        operations:
+          - method: GET
+            name: "get-health-metrics"
+            inputParameters:
+              - name: api_ref
+                in: query
+                type: string
+              - name: time_range
+                in: query
+                type: string
+            outputParameters:
+              - name: uptime
+                in: body
+                path: "$.uptime"
+                type: number
+              - name: avg_latency
+                in: body
+                path: "$.avg_latency_ms"
+                type: number
+              - name: error_rate
+                in: body
+                path: "$.error_rate"
+                type: number
+      - name: "get-api-status"
+        path: "/api/v1/apis/status"
+        operations:
+          - method: POST
+            name: "get-api-status"
+            inputParameters:
+              - name: apis
+                in: body
+                type: array
+            outputParameters:
+              - name: statuses
+                in: body
+                path: "$.statuses"
+                type: array
+      - name: "get-security-events"
+        path: "/api/v1/security/events"
+        operations:
+          - method: GET
+            name: "get-security-events"
+            inputParameters:
+              - name: api_ref
+                in: query
+                type: string
+              - name: time_range
+                in: query
+                type: string
+            outputParameters:
+              - name: events
+                in: body
+                path: "$.events"
+                type: array

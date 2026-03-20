@@ -1,0 +1,110 @@
+naftiko: "0.5"
+info:
+  label: "API Lifecycle Compliance"
+  description: "Monitor and enforce API lifecycle policies including versioning, deprecation timelines, sunset schedules, and migration compliance. Detects APIs that violate lifecycle policies and generates remediation actions for API owners."
+  tags:
+    - api-governance
+    - lifecycle
+    - compliance
+    - deprecation
+    - versioning
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "check-lifecycle-compliance"
+          description: "Check all APIs in the catalog against lifecycle policies. Identifies APIs past deprecation deadlines, missing sunset headers, lacking version strategies, or with stale specifications that have drifted from production."
+          inputParameters:
+            - name: domain
+              in: body
+              type: string
+              description: "Filter by business domain"
+            - name: lifecycle_stage
+              in: body
+              type: string
+              description: "Filter by stage: experimental, production, deprecated, sunset"
+            - name: include_third_party
+              in: body
+              type: boolean
+              description: "Include third-party API lifecycle checks"
+          steps:
+            - name: get-apis
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,spec.domain={{domain}},metadata.annotations.lifecycle={{lifecycle_stage}}"
+            - name: check-deprecation-status
+              type: call
+              call: "backstage.get-entity-facets"
+              with:
+                entities: "{{get-apis.items}}"
+                facets: "metadata.annotations.api.lifecycle/*,metadata.annotations.api.sunset-date/*"
+            - name: check-gateway-status
+              type: call
+              call: "api-gateway.get-api-status"
+              with:
+                apis: "{{get-apis.items}}"
+            - name: check-spec-drift
+              type: call
+              call: "spectral.compare-spec-to-traffic"
+              with:
+                apis: "{{get-apis.items}}"
+          outputParameters:
+            - name: compliant_count
+              type: integer
+            - name: non_compliant_count
+              type: integer
+            - name: violations
+              type: array
+              description: "List of lifecycle violations with API ref, violation type, and remediation"
+            - name: upcoming_sunsets
+              type: array
+              description: "APIs approaching sunset deadline within 90 days"
+            - name: spec_drift_detected
+              type: array
+              description: "APIs where spec has drifted from observed traffic"
+
+        - name: "get-deprecation-timeline"
+          description: "Generate a deprecation timeline showing all APIs in deprecation or sunset phases, their consumer impact, and recommended migration paths."
+          inputParameters:
+            - name: horizon_days
+              in: body
+              type: integer
+              description: "Look-ahead window in days"
+          steps:
+            - name: get-deprecated-apis
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,metadata.annotations.lifecycle=deprecated"
+            - name: get-sunset-apis
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,metadata.annotations.lifecycle=sunset"
+            - name: get-consumer-impact
+              type: call
+              call: "backstage.get-relation-counts"
+              with:
+                entities: "{{get-deprecated-apis.items}}"
+                relation: "consumedBy"
+          outputParameters:
+            - name: timeline
+              type: array
+              description: "Chronological list of deprecation/sunset events"
+            - name: impacted_consumers
+              type: integer
+            - name: migration_paths
+              type: array
+
+  consumes:
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-api-gateway.yml"
+      as: "api-gateway"
+    - import: "consumes-spectral.yml"
+      as: "spectral"

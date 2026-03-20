@@ -1,0 +1,134 @@
+naftiko: "0.5"
+info:
+  label: "API Standards Alignment"
+  description: "Check alignment of APIs and capabilities with organizational standards and industry specifications including OpenAPI, AsyncAPI, MCP, A2A, Arazzo, and Overlays. Validates that APIs follow the golden path standards and identifies gaps in standards adoption across the portfolio."
+  tags:
+    - api-governance
+    - standards
+    - openapi
+    - asyncapi
+    - mcp
+    - a2a
+    - golden-path
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "check-standards-alignment"
+          description: "Check a specific API or capability against organizational golden path standards. Validates spec format compliance, naming conventions, versioning strategy, documentation completeness, and protocol adherence for OpenAPI, AsyncAPI, MCP, and A2A specifications."
+          inputParameters:
+            - name: entity_ref
+              in: body
+              type: string
+              description: "Backstage entity reference"
+            - name: spec_url
+              in: body
+              type: string
+              description: "Direct URL to the spec file"
+            - name: standards_profile
+              in: body
+              type: string
+              description: "Standards profile to check against: default, strict, minimal"
+          steps:
+            - name: get-entity-spec
+              type: call
+              call: "backstage.get-entity"
+              with:
+                entity_ref: "{{entity_ref}}"
+            - name: detect-spec-type
+              type: call
+              call: "spectral.detect-format"
+              with:
+                content: "{{get-entity-spec.spec}}"
+            - name: check-format-compliance
+              type: call
+              call: "spectral.lint"
+              with:
+                content: "{{get-entity-spec.spec}}"
+                ruleset: "{{standards_profile}}-{{detect-spec-type.format}}"
+            - name: check-naming-conventions
+              type: call
+              call: "spectral.lint"
+              with:
+                content: "{{get-entity-spec.spec}}"
+                ruleset: "naming-conventions"
+            - name: check-versioning
+              type: call
+              call: "spectral.lint"
+              with:
+                content: "{{get-entity-spec.spec}}"
+                ruleset: "versioning-policy"
+          outputParameters:
+            - name: spec_type
+              type: string
+              description: "Detected spec type: openapi-3.0, openapi-3.1, asyncapi-2, asyncapi-3, naftiko-0.5"
+            - name: alignment_score
+              type: number
+              description: "Standards alignment score 0-100"
+            - name: format_violations
+              type: array
+            - name: naming_violations
+              type: array
+            - name: versioning_violations
+              type: array
+            - name: golden_path_gaps
+              type: array
+              description: "Specific gaps from the organizational golden path"
+            - name: recommendations
+              type: array
+
+        - name: "get-portfolio-standards-report"
+          description: "Generate a portfolio-wide standards adoption report. Shows which specs are using which standards, identifies APIs without machine-readable specs, and tracks standards adoption trends over time."
+          inputParameters:
+            - name: domain
+              in: body
+              type: string
+            - name: include_third_party
+              in: body
+              type: boolean
+          steps:
+            - name: get-all-apis
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,spec.domain={{domain}}"
+            - name: get-spec-formats
+              type: call
+              call: "backstage.get-entity-facets"
+              with:
+                entities: "{{get-all-apis.items}}"
+                facets: "spec.type,spec.lifecycle,metadata.annotations.spec-format"
+            - name: check-spec-coverage
+              type: call
+              call: "backstage.get-entities-without-spec"
+              with:
+                domain: "{{domain}}"
+          outputParameters:
+            - name: total_apis
+              type: integer
+            - name: with_machine_readable_spec
+              type: integer
+            - name: without_spec
+              type: integer
+            - name: format_distribution
+              type: object
+              description: "Count by spec format: openapi, asyncapi, grpc, graphql, none"
+            - name: standards_adoption
+              type: object
+              description: "Adoption rates for each standard"
+            - name: gaps
+              type: array
+              description: "APIs missing machine-readable specs"
+            - name: trend
+              type: object
+              description: "Standards adoption trend over past quarters"
+
+  consumes:
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-spectral.yml"
+      as: "spectral"

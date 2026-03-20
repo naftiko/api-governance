@@ -1,0 +1,152 @@
+naftiko: "0.5"
+info:
+  label: "MCP Server Security Review"
+  description: "Security review and blessing workflow for third-party MCP servers before enterprise adoption. Scans tool definitions, permission scopes, data access patterns, and network behavior against organizational security policies. Produces a risk assessment and approval recommendation."
+  tags:
+    - api-governance
+    - security
+    - mcp
+    - review
+    - blessing
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "review-mcp-server"
+          description: "Perform a security review of a third-party MCP server. Analyzes tool definitions, permission scopes, data classification, network endpoints, and authentication patterns. Returns a risk score and approval recommendation per organizational policy."
+          inputParameters:
+            - name: mcp_server_url
+              in: body
+              type: string
+              description: "URL or registry reference for the MCP server"
+            - name: mcp_server_name
+              in: body
+              type: string
+            - name: vendor
+              in: body
+              type: string
+            - name: requested_by
+              in: body
+              type: string
+              description: "Team or individual requesting the MCP server"
+            - name: use_case
+              in: body
+              type: string
+              description: "Intended use case for the MCP server"
+          steps:
+            - name: fetch-mcp-manifest
+              type: call
+              call: "mcp-registry.get-server-manifest"
+              with:
+                server_url: "{{mcp_server_url}}"
+            - name: scan-tool-permissions
+              type: call
+              call: "security-scanner.analyze-mcp-tools"
+              with:
+                tools: "{{fetch-mcp-manifest.tools}}"
+                vendor: "{{vendor}}"
+            - name: check-network-endpoints
+              type: call
+              call: "security-scanner.analyze-endpoints"
+              with:
+                endpoints: "{{fetch-mcp-manifest.endpoints}}"
+                allowed_domains: "{{ALLOWED_EXTERNAL_DOMAINS}}"
+            - name: classify-data-access
+              type: call
+              call: "security-scanner.classify-data"
+              with:
+                tool_schemas: "{{fetch-mcp-manifest.tools}}"
+                data_classification_policy: "{{DATA_CLASSIFICATION_POLICY}}"
+            - name: check-existing-approvals
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=mcp-server,metadata.name={{mcp_server_name}}"
+            - name: create-review-ticket
+              type: call
+              call: "github.create-issue"
+              with:
+                repo: "{{GOVERNANCE_REPO}}"
+                title: "MCP Security Review: {{mcp_server_name}} ({{vendor}})"
+                body: "Requested by: {{requested_by}}\nUse case: {{use_case}}\n\nRisk Score: {{scan-tool-permissions.risk_score}}\nData Classification: {{classify-data-access.classification}}\nNetwork Risk: {{check-network-endpoints.risk_level}}\n\nTools: {{fetch-mcp-manifest.tool_count}}\nPermission Scopes: {{scan-tool-permissions.scopes}}"
+                labels: "mcp-review,security"
+          outputParameters:
+            - name: risk_score
+              type: number
+              description: "Overall risk score 0-100 (higher = more risk)"
+            - name: risk_level
+              type: string
+              description: "low, medium, high, critical"
+            - name: recommendation
+              type: string
+              description: "approve, approve-with-conditions, deny, escalate"
+            - name: findings
+              type: array
+              description: "Detailed security findings"
+            - name: review_ticket_url
+              type: string
+            - name: data_classification
+              type: string
+
+        - name: "approve-mcp-server"
+          description: "Record approval decision for an MCP server security review. Updates the governance registry and notifies the requesting team."
+          inputParameters:
+            - name: review_ticket_id
+              in: body
+              type: string
+            - name: decision
+              in: body
+              type: string
+              description: "approved, approved-with-conditions, denied"
+            - name: conditions
+              in: body
+              type: string
+              description: "Conditions for conditional approval"
+            - name: approved_by
+              in: body
+              type: string
+          steps:
+            - name: update-registry
+              type: call
+              call: "backstage.register-entity"
+              with:
+                kind: "mcp-server"
+                metadata:
+                  annotations:
+                    governance/approval-status: "{{decision}}"
+                    governance/approved-by: "{{approved_by}}"
+                    governance/conditions: "{{conditions}}"
+            - name: close-review
+              type: call
+              call: "github.update-issue"
+              with:
+                issue_id: "{{review_ticket_id}}"
+                state: "closed"
+                comment: "Decision: {{decision}}\nApproved by: {{approved_by}}\nConditions: {{conditions}}"
+            - name: notify-requester
+              type: call
+              call: "slack.post-message"
+              with:
+                channel: "{{GOVERNANCE_CHANNEL}}"
+                text: "MCP Server Review Complete: {{decision}} | Ticket: {{review_ticket_id}} | Approved by: {{approved_by}}"
+          outputParameters:
+            - name: status
+              type: string
+            - name: registry_entry
+              type: object
+
+  consumes:
+    - import: "shared-github.yml"
+      as: "github"
+    - import: "shared-slack.yml"
+      as: "slack"
+    - import: "consumes-mcp-registry.yml"
+      as: "mcp-registry"
+    - import: "consumes-security-scanner.yml"
+      as: "security-scanner"
+    - import: "consumes-backstage.yml"
+      as: "backstage"

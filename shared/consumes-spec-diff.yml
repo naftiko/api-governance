@@ -1,0 +1,53 @@
+naftiko: "0.5"
+info:
+  label: "Spec Diff Service"
+  description: "API specification diff analysis — breaking change detection, consumer impact assessment"
+  tags:
+    - spec-diff
+    - shared
+    - breaking-changes
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "spec-diff"
+    type: "http"
+    baseUri: "{{SPEC_DIFF_SERVICE_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.SPEC_DIFF_TOKEN"
+    resources:
+      - name: "analyze"
+        path: "/api/v1/diff/analyze"
+        operations:
+          - method: POST
+            name: "analyze"
+            inputParameters:
+              - name: diff
+                in: body
+                type: string
+              - name: spec_path
+                in: body
+                type: string
+            outputParameters:
+              - name: changes
+                in: body
+                path: "$.breaking_changes"
+                type: array
+      - name: "assess-consumer-impact"
+        path: "/api/v1/diff/impact"
+        operations:
+          - method: POST
+            name: "assess-consumer-impact"
+            inputParameters:
+              - name: breaking_changes
+                in: body
+                type: array
+              - name: consumers
+                in: body
+                type: array
+            outputParameters:
+              - name: impact
+                in: body
+                path: "$.consumer_impact"
+                type: array

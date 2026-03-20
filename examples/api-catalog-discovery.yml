@@ -1,0 +1,101 @@
+naftiko: "0.5"
+info:
+  label: "API Catalog Discovery"
+  description: "Search and discover APIs, capabilities, and MCP servers across the Backstage catalog with governance metadata enrichment. Returns ownership, lifecycle status, compliance tags, and reuse metrics for each discovered asset."
+  tags:
+    - api-governance
+    - discovery
+    - backstage
+    - catalog
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "search-api-catalog"
+          description: "Search the Backstage catalog for APIs, capabilities, and MCP servers matching a query. Returns governance metadata including ownership, lifecycle stage, compliance status, and reuse count."
+          inputParameters:
+            - name: query
+              in: body
+              type: string
+            - name: entity_kind
+              in: body
+              type: string
+              description: "Filter by kind: api, capability, mcp-server, component"
+            - name: lifecycle
+              in: body
+              type: string
+              description: "Filter by lifecycle stage: experimental, production, deprecated"
+            - name: domain
+              in: body
+              type: string
+              description: "Filter by business domain"
+          steps:
+            - name: search-backstage
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind={{entity_kind}},metadata.annotations.lifecycle={{lifecycle}},spec.domain={{domain}}"
+                term: "{{query}}"
+            - name: enrich-governance
+              type: call
+              call: "backstage.get-entity-facets"
+              with:
+                entities: "{{search-backstage.items}}"
+                facets: "metadata.annotations.governance/*,metadata.annotations.compliance/*,relations"
+            - name: get-reuse-metrics
+              type: call
+              call: "backstage.get-entity-relations"
+              with:
+                entities: "{{search-backstage.items}}"
+                relation: "consumedBy"
+          outputParameters:
+            - name: results
+              type: array
+              description: "Discovered APIs with governance enrichment"
+            - name: total_count
+              type: integer
+            - name: facets
+              type: object
+              description: "Aggregated governance facets across results"
+
+        - name: "get-api-governance-detail"
+          description: "Get full governance detail for a specific API or capability entity, including ownership chain, policy compliance, security classification, and consumer list."
+          inputParameters:
+            - name: entity_ref
+              in: body
+              type: string
+              description: "Backstage entity reference (e.g., api:default/payments-v2)"
+          steps:
+            - name: get-entity
+              type: call
+              call: "backstage.get-entity"
+              with:
+                entity_ref: "{{entity_ref}}"
+            - name: get-consumers
+              type: call
+              call: "backstage.get-entity-relations"
+              with:
+                entity_ref: "{{entity_ref}}"
+                relation: "consumedBy"
+            - name: get-scorecard
+              type: call
+              call: "backstage.get-entity-scorecards"
+              with:
+                entity_ref: "{{entity_ref}}"
+          outputParameters:
+            - name: entity
+              type: object
+            - name: consumers
+              type: array
+            - name: scorecard
+              type: object
+            - name: governance_status
+              type: string
+
+  consumes:
+    - import: "consumes-backstage.yml"
+      as: "backstage"

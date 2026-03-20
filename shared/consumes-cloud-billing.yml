@@ -1,0 +1,39 @@
+naftiko: "0.5"
+info:
+  label: "Cloud Billing"
+  description: "Cloud billing API — compute cost attribution by labels and capability tags"
+  tags:
+    - cloud
+    - shared
+    - billing
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "cloud-billing"
+    type: "http"
+    baseUri: "{{CLOUD_BILLING_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.CLOUD_BILLING_TOKEN"
+    resources:
+      - name: "get-capability-costs"
+        path: "/api/v1/costs/by-label"
+        operations:
+          - method: POST
+            name: "get-capability-costs"
+            inputParameters:
+              - name: time_range
+                in: body
+                type: string
+              - name: group_by
+                in: body
+                type: string
+              - name: labels
+                in: body
+                type: string
+            outputParameters:
+              - name: costs
+                in: body
+                path: "$.costs"
+                type: object

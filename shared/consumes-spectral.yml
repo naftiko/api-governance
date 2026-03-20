@@ -1,0 +1,113 @@
+naftiko: "0.5"
+info:
+  label: "Spectral Linting Service"
+  description: "Spectral-based API spec linting, schema validation, format detection, and standards checking"
+  tags:
+    - spectral
+    - shared
+    - linting
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "spectral"
+    type: "http"
+    baseUri: "{{SPECTRAL_SERVICE_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.SPECTRAL_SERVICE_TOKEN"
+    resources:
+      - name: "lint"
+        path: "/api/v1/lint"
+        operations:
+          - method: POST
+            name: "lint"
+            inputParameters:
+              - name: content
+                in: body
+                type: string
+              - name: ruleset
+                in: body
+                type: string
+              - name: format
+                in: body
+                type: string
+            outputParameters:
+              - name: violations
+                in: body
+                path: "$.results"
+                type: array
+              - name: summary
+                in: body
+                path: "$.summary"
+                type: object
+              - name: score
+                in: body
+                path: "$.score"
+                type: number
+      - name: "validate-schema"
+        path: "/api/v1/validate"
+        operations:
+          - method: POST
+            name: "validate-schema"
+            inputParameters:
+              - name: content
+                in: body
+                type: string
+              - name: schema_type
+                in: body
+                type: string
+            outputParameters:
+              - name: is_valid
+                in: body
+                path: "$.valid"
+                type: boolean
+              - name: errors
+                in: body
+                path: "$.errors"
+                type: array
+      - name: "lint-batch"
+        path: "/api/v1/lint/batch"
+        operations:
+          - method: POST
+            name: "lint-batch"
+            inputParameters:
+              - name: files
+                in: body
+                type: array
+              - name: ruleset
+                in: body
+                type: string
+            outputParameters:
+              - name: results
+                in: body
+                path: "$.results"
+                type: array
+      - name: "detect-format"
+        path: "/api/v1/detect"
+        operations:
+          - method: POST
+            name: "detect-format"
+            inputParameters:
+              - name: content
+                in: body
+                type: string
+            outputParameters:
+              - name: format
+                in: body
+                path: "$.format"
+                type: string
+      - name: "compare-spec-to-traffic"
+        path: "/api/v1/drift"
+        operations:
+          - method: POST
+            name: "compare-spec-to-traffic"
+            inputParameters:
+              - name: apis
+                in: body
+                type: array
+            outputParameters:
+              - name: drift_results
+                in: body
+                path: "$.results"
+                type: array

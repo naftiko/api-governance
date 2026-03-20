@@ -1,0 +1,103 @@
+naftiko: "0.5"
+info:
+  label: "Identity Service"
+  description: "Agent identity management — OBO verification, identity chain extraction, escalation detection, permission auditing"
+  tags:
+    - identity
+    - shared
+    - agent
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "identity-service"
+    type: "http"
+    baseUri: "{{IDENTITY_SERVICE_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.IDENTITY_SERVICE_TOKEN"
+    resources:
+      - name: "extract-identity-hops"
+        path: "/api/v1/identity/extract"
+        operations:
+          - method: POST
+            name: "extract-identity-hops"
+            inputParameters:
+              - name: trace
+                in: body
+                type: array
+            outputParameters:
+              - name: hops
+                in: body
+                path: "$.hops"
+                type: array
+      - name: "verify-obo-chain"
+        path: "/api/v1/identity/verify-obo"
+        operations:
+          - method: POST
+            name: "verify-obo-chain"
+            inputParameters:
+              - name: identity_hops
+                in: body
+                type: array
+              - name: policy
+                in: body
+                type: string
+            outputParameters:
+              - name: valid
+                in: body
+                path: "$.valid"
+                type: boolean
+              - name: violations
+                in: body
+                path: "$.violations"
+                type: array
+      - name: "detect-escalation"
+        path: "/api/v1/identity/detect-escalation"
+        operations:
+          - method: POST
+            name: "detect-escalation"
+            inputParameters:
+              - name: identity_hops
+                in: body
+                type: array
+            outputParameters:
+              - name: escalation_detected
+                in: body
+                path: "$.detected"
+                type: boolean
+              - name: details
+                in: body
+                path: "$.details"
+                type: array
+      - name: "get-agent-permissions"
+        path: "/api/v1/agents/permissions"
+        operations:
+          - method: POST
+            name: "get-agent-permissions"
+            inputParameters:
+              - name: agents
+                in: body
+                type: array
+            outputParameters:
+              - name: permissions
+                in: body
+                path: "$.permissions"
+                type: array
+      - name: "assess-permission-risk"
+        path: "/api/v1/agents/permission-risk"
+        operations:
+          - method: POST
+            name: "assess-permission-risk"
+            inputParameters:
+              - name: permissions
+                in: body
+                type: array
+              - name: policy
+                in: body
+                type: string
+            outputParameters:
+              - name: risk_assessment
+                in: body
+                path: "$.assessment"
+                type: object

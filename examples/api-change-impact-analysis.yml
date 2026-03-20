@@ -1,0 +1,122 @@
+naftiko: "0.5"
+info:
+  label: "API Change Impact Analysis"
+  description: "Analyze the downstream impact of API changes across consuming capabilities, MCP servers, and agent workflows. Detects breaking changes, identifies affected consumers, and generates migration guidance before changes are deployed."
+  tags:
+    - api-governance
+    - impact-analysis
+    - breaking-changes
+    - migration
+    - risk
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "analyze-change-impact"
+          description: "Given a proposed API spec change (PR or diff), analyze the downstream impact across all consuming capabilities, MCP servers, and agent workflows. Identifies breaking changes, affected consumers, and severity."
+          inputParameters:
+            - name: repo_ref
+              in: body
+              type: string
+            - name: pull_request_number
+              in: body
+              type: integer
+              description: "PR containing the spec change"
+            - name: spec_path
+              in: body
+              type: string
+              description: "Path to the changed spec file in the repo"
+          steps:
+            - name: get-pr-diff
+              type: call
+              call: "github.get-pull-request-diff"
+              with:
+                repo: "{{repo_ref}}"
+                pull_number: "{{pull_request_number}}"
+                path: "{{spec_path}}"
+            - name: detect-breaking-changes
+              type: call
+              call: "spec-diff.analyze"
+              with:
+                diff: "{{get-pr-diff.diff}}"
+                spec_path: "{{spec_path}}"
+            - name: find-consumers
+              type: call
+              call: "backstage.get-entity-relations"
+              with:
+                entity_ref: "{{get-pr-diff.api_entity_ref}}"
+                relation: "consumedBy"
+            - name: assess-consumer-impact
+              type: call
+              call: "spec-diff.assess-consumer-impact"
+              with:
+                breaking_changes: "{{detect-breaking-changes.changes}}"
+                consumers: "{{find-consumers.relations}}"
+          outputParameters:
+            - name: breaking_changes
+              type: array
+              description: "List of breaking changes detected"
+            - name: affected_consumers
+              type: array
+              description: "Consumers impacted with severity per consumer"
+            - name: total_affected
+              type: integer
+            - name: risk_level
+              type: string
+              description: "low, medium, high, critical"
+            - name: migration_guidance
+              type: array
+              description: "Per-consumer migration steps"
+
+        - name: "generate-migration-plan"
+          description: "Generate a detailed migration plan for consumers affected by an API change. Includes timeline, dependency ordering, rollback strategy, and notification templates."
+          inputParameters:
+            - name: api_entity_ref
+              in: body
+              type: string
+            - name: breaking_changes
+              in: body
+              type: array
+            - name: target_date
+              in: body
+              type: string
+              description: "Target completion date for migration"
+          steps:
+            - name: get-consumers
+              type: call
+              call: "backstage.get-entity-relations"
+              with:
+                entity_ref: "{{api_entity_ref}}"
+                relation: "consumedBy"
+            - name: get-consumer-owners
+              type: call
+              call: "backstage.get-entity-owners"
+              with:
+                entities: "{{get-consumers.relations}}"
+            - name: create-migration-issues
+              type: call
+              call: "github.create-issue"
+              with:
+                repo: "{{GOVERNANCE_REPO}}"
+                title: "Migration Required: {{api_entity_ref}} breaking changes"
+                body: "Target date: {{target_date}}\nBreaking changes: {{breaking_changes}}\nAffected consumers: {{get-consumers.count}}"
+                labels: "migration,api-governance"
+          outputParameters:
+            - name: migration_plan
+              type: object
+            - name: consumer_notifications
+              type: array
+            - name: issue_url
+              type: string
+
+  consumes:
+    - import: "shared-github.yml"
+      as: "github"
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-spec-diff.yml"
+      as: "spec-diff"

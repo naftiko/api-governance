@@ -1,0 +1,123 @@
+naftiko: "0.5"
+info:
+  label: "Agent Identity Audit"
+  description: "Audit agent-to-agent identity propagation across capability chains. Traces identity tokens through MCP tool calls and A2A protocol interactions to verify proper OBO (On Behalf Of) token propagation, detect identity escalation, and ensure compliance with identity policies."
+  tags:
+    - api-governance
+    - identity
+    - agent
+    - a2a
+    - audit
+    - obo
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "audit-agent-identity-chain"
+          description: "Trace and audit the identity propagation chain for a specific agent workflow. Verifies that OBO tokens are properly propagated, identity is not escalated, and all hops maintain proper authentication context per the Agent 365 identity story."
+          inputParameters:
+            - name: workflow_id
+              in: body
+              type: string
+              description: "Agent workflow or session ID to trace"
+            - name: time_range
+              in: body
+              type: string
+              description: "Time range to search for the workflow"
+            - name: agent_id
+              in: body
+              type: string
+              description: "Starting agent identity to trace from"
+          steps:
+            - name: get-workflow-trace
+              type: call
+              call: "observability.get-distributed-trace"
+              with:
+                workflow_id: "{{workflow_id}}"
+                time_range: "{{time_range}}"
+            - name: extract-identity-chain
+              type: call
+              call: "identity-service.extract-identity-hops"
+              with:
+                trace: "{{get-workflow-trace.spans}}"
+            - name: verify-obo-propagation
+              type: call
+              call: "identity-service.verify-obo-chain"
+              with:
+                identity_hops: "{{extract-identity-chain.hops}}"
+                policy: "{{IDENTITY_PROPAGATION_POLICY}}"
+            - name: check-escalation
+              type: call
+              call: "identity-service.detect-escalation"
+              with:
+                identity_hops: "{{extract-identity-chain.hops}}"
+          outputParameters:
+            - name: identity_chain
+              type: array
+              description: "Ordered list of identity hops with token type and principal"
+            - name: obo_valid
+              type: boolean
+              description: "Whether OBO propagation is correct throughout"
+            - name: escalation_detected
+              type: boolean
+            - name: escalation_details
+              type: array
+              description: "Details of any identity escalation found"
+            - name: policy_violations
+              type: array
+            - name: hop_count
+              type: integer
+            - name: risk_level
+              type: string
+
+        - name: "audit-agent-permissions"
+          description: "Audit the effective permissions of all registered agents and MCP servers. Identifies over-permissioned agents, agents accessing data above their classification level, and agents with expired or weak credentials."
+          inputParameters:
+            - name: domain
+              in: body
+              type: string
+            - name: include_third_party
+              in: body
+              type: boolean
+          steps:
+            - name: get-registered-agents
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=mcp-server,spec.domain={{domain}}"
+            - name: get-agent-permissions
+              type: call
+              call: "identity-service.get-agent-permissions"
+              with:
+                agents: "{{get-registered-agents.items}}"
+            - name: assess-permission-risk
+              type: call
+              call: "identity-service.assess-permission-risk"
+              with:
+                permissions: "{{get-agent-permissions.permissions}}"
+                policy: "{{AGENT_PERMISSION_POLICY}}"
+          outputParameters:
+            - name: agents_audited
+              type: integer
+            - name: over_permissioned
+              type: array
+              description: "Agents with more permissions than needed"
+            - name: weak_credentials
+              type: array
+              description: "Agents with expired or weak authentication"
+            - name: data_classification_violations
+              type: array
+            - name: risk_summary
+              type: object
+
+  consumes:
+    - import: "consumes-observability.yml"
+      as: "observability"
+    - import: "consumes-identity-service.yml"
+      as: "identity-service"
+    - import: "consumes-backstage.yml"
+      as: "backstage"

@@ -1,0 +1,163 @@
+naftiko: "0.5"
+info:
+  label: "MCP Registry Governance"
+  description: "Govern the organizational MCP server registry with approval workflows, usage policies, and compliance tracking. Manages the lifecycle of blessed MCP servers from request through approval, monitoring, and retirement. Integrates with GitHub's MCP registry per-organization configuration."
+  tags:
+    - api-governance
+    - mcp
+    - registry
+    - approval
+    - policy
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "list-registry-status"
+          description: "List all MCP servers in the organizational registry with their governance status. Shows approved, pending review, denied, and deprecated servers with usage metrics and compliance status."
+          inputParameters:
+            - name: status
+              in: body
+              type: string
+              description: "Filter by status: approved, pending, denied, deprecated, all"
+            - name: vendor
+              in: body
+              type: string
+            - name: category
+              in: body
+              type: string
+              description: "Filter by category: development, data, communication, security, ai"
+          steps:
+            - name: get-registry-entries
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=mcp-server,metadata.annotations.governance/status={{status}},metadata.annotations.vendor={{vendor}}"
+            - name: get-usage-metrics
+              type: call
+              call: "mcp-registry.get-usage-stats"
+              with:
+                servers: "{{get-registry-entries.items}}"
+          outputParameters:
+            - name: servers
+              type: array
+              description: "MCP servers with governance metadata and usage"
+            - name: total_approved
+              type: integer
+            - name: total_pending
+              type: integer
+            - name: total_denied
+              type: integer
+            - name: compliance_summary
+              type: object
+
+        - name: "request-mcp-server"
+          description: "Submit a request to add a new MCP server to the organizational registry. Creates a governance review workflow with security assessment, policy check, and approval routing."
+          inputParameters:
+            - name: server_name
+              in: body
+              type: string
+            - name: server_url
+              in: body
+              type: string
+            - name: vendor
+              in: body
+              type: string
+            - name: justification
+              in: body
+              type: string
+            - name: requested_by
+              in: body
+              type: string
+            - name: team
+              in: body
+              type: string
+            - name: category
+              in: body
+              type: string
+          steps:
+            - name: check-existing
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=mcp-server,metadata.name={{server_name}}"
+            - name: check-vendor-policy
+              type: call
+              call: "mcp-registry.check-vendor-policy"
+              with:
+                vendor: "{{vendor}}"
+                server_url: "{{server_url}}"
+            - name: create-review-request
+              type: call
+              call: "github.create-issue"
+              with:
+                repo: "{{GOVERNANCE_REPO}}"
+                title: "MCP Registry Request: {{server_name}} ({{vendor}})"
+                body: "Requested by: {{requested_by}} ({{team}})\nJustification: {{justification}}\nCategory: {{category}}\nVendor Policy: {{check-vendor-policy.status}}"
+                labels: "mcp-registry,review-needed"
+            - name: notify-governance
+              type: call
+              call: "slack.post-message"
+              with:
+                channel: "{{GOVERNANCE_CHANNEL}}"
+                text: "New MCP Registry Request: {{server_name}} from {{vendor}} | Requested by {{requested_by}} ({{team}}) | Review: {{create-review-request.url}}"
+          outputParameters:
+            - name: request_id
+              type: string
+            - name: existing_entry
+              type: object
+              description: "Null if new, existing entry if duplicate"
+            - name: vendor_policy_status
+              type: string
+            - name: review_url
+              type: string
+
+        - name: "sync-github-mcp-registry"
+          description: "Synchronize the organizational MCP registry with GitHub's per-organization MCP server configuration. Ensures only blessed servers are available in GitHub Copilot across the organization."
+          inputParameters:
+            - name: github_org
+              in: body
+              type: string
+            - name: dry_run
+              in: body
+              type: boolean
+              description: "Preview changes without applying"
+          steps:
+            - name: get-approved-servers
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=mcp-server,metadata.annotations.governance/status=approved"
+            - name: get-github-registry
+              type: call
+              call: "github.get-org-mcp-config"
+              with:
+                org: "{{github_org}}"
+            - name: compute-diff
+              type: call
+              call: "mcp-registry.compute-registry-diff"
+              with:
+                approved: "{{get-approved-servers.items}}"
+                current_github: "{{get-github-registry.servers}}"
+          outputParameters:
+            - name: to_add
+              type: array
+            - name: to_remove
+              type: array
+            - name: unchanged
+              type: array
+            - name: dry_run
+              type: boolean
+
+  consumes:
+    - import: "shared-github.yml"
+      as: "github"
+    - import: "shared-slack.yml"
+      as: "slack"
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-mcp-registry.yml"
+      as: "mcp-registry"

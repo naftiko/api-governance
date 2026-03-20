@@ -1,0 +1,116 @@
+naftiko: "0.5"
+info:
+  label: "API Reuse Metrics"
+  description: "Track, quantify, and report API reuse across the organization. Measures consumption patterns, calculates reuse ratios, identifies underutilized assets, and generates leadership-ready reports that demonstrate ROI of API investments."
+  tags:
+    - api-governance
+    - reuse
+    - metrics
+    - roi
+    - finops
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+capability:
+  exposes:
+    - type: "mcp"
+      namespace: "api-governance"
+      tools:
+        - name: "get-reuse-metrics"
+          description: "Calculate API reuse metrics across the organization. Returns reuse ratios, consumer counts, trend data, and cost savings estimates for APIs and capabilities tracked in the catalog."
+          inputParameters:
+            - name: domain
+              in: body
+              type: string
+              description: "Filter by business domain"
+            - name: time_range
+              in: body
+              type: string
+              description: "Time range for metrics: 7d, 30d, 90d, 1y"
+            - name: group_by
+              in: body
+              type: string
+              description: "Group results by: domain, team, lifecycle, api"
+          steps:
+            - name: get-catalog-entities
+              type: call
+              call: "backstage.search-catalog"
+              with:
+                filter: "kind=api,spec.domain={{domain}}"
+            - name: get-consumption-data
+              type: call
+              call: "api-gateway.get-usage-metrics"
+              with:
+                apis: "{{get-catalog-entities.items}}"
+                time_range: "{{time_range}}"
+                group_by: "{{group_by}}"
+            - name: get-consumer-counts
+              type: call
+              call: "backstage.get-relation-counts"
+              with:
+                entities: "{{get-catalog-entities.items}}"
+                relation: "consumedBy"
+          outputParameters:
+            - name: total_apis
+              type: integer
+            - name: reuse_ratio
+              type: number
+              description: "Average consumers per API"
+            - name: apis_with_multiple_consumers
+              type: integer
+            - name: underutilized_apis
+              type: array
+              description: "APIs with 0-1 consumers"
+            - name: top_reused_apis
+              type: array
+            - name: trend
+              type: object
+              description: "Reuse trend over the time range"
+            - name: estimated_cost_savings
+              type: number
+              description: "Estimated savings from reuse vs rebuild"
+
+        - name: "get-api-reuse-report"
+          description: "Generate a leadership-ready API reuse report with visualizable data. Includes executive summary, reuse trends, top performers, and recommendations for improving reuse across the organization."
+          inputParameters:
+            - name: report_period
+              in: body
+              type: string
+              description: "Reporting period: monthly, quarterly, annual"
+            - name: compare_to_previous
+              in: body
+              type: boolean
+              description: "Include comparison to previous period"
+          steps:
+            - name: current-metrics
+              type: call
+              call: "api-gateway.get-usage-metrics"
+              with:
+                time_range: "{{report_period}}"
+                group_by: "domain"
+            - name: previous-metrics
+              type: call
+              call: "api-gateway.get-usage-metrics"
+              with:
+                time_range: "previous_{{report_period}}"
+                group_by: "domain"
+            - name: get-all-relations
+              type: call
+              call: "backstage.get-all-consumption-relations"
+              with:
+                kind: "api"
+          outputParameters:
+            - name: executive_summary
+              type: object
+            - name: reuse_by_domain
+              type: array
+            - name: period_comparison
+              type: object
+            - name: recommendations
+              type: array
+
+  consumes:
+    - import: "consumes-backstage.yml"
+      as: "backstage"
+    - import: "consumes-api-gateway.yml"
+      as: "api-gateway"

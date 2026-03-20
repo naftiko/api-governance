@@ -1,0 +1,209 @@
+naftiko: "0.5"
+info:
+  label: "Backstage Software Catalog"
+  description: "Backstage Software Catalog API — entities, search, relations, scorecards, facets"
+  tags:
+    - backstage
+    - shared
+    - catalog
+  created: "2026-03-19"
+  modified: "2026-03-19"
+
+consumes:
+  - namespace: "backstage"
+    type: "http"
+    baseUri: "{{BACKSTAGE_BASE_URL}}"
+    authentication:
+      type: "bearer"
+      token: "$secrets.BACKSTAGE_TOKEN"
+    resources:
+      - name: "search-catalog"
+        path: "/api/search/query"
+        operations:
+          - method: GET
+            name: "search-catalog"
+            inputParameters:
+              - name: term
+                in: query
+                type: string
+              - name: filter
+                in: query
+                type: string
+            outputParameters:
+              - name: items
+                in: body
+                path: "$.results"
+                type: array
+      - name: "get-entity"
+        path: "/api/catalog/entities/by-name/{entity_ref}"
+        operations:
+          - method: GET
+            name: "get-entity"
+            inputParameters:
+              - name: entity_ref
+                in: path
+                type: string
+            outputParameters:
+              - name: entity
+                in: body
+                path: "$"
+                type: object
+      - name: "get-entity-facets"
+        path: "/api/catalog/entity-facets"
+        operations:
+          - method: GET
+            name: "get-entity-facets"
+            inputParameters:
+              - name: entities
+                in: query
+                type: string
+              - name: facets
+                in: query
+                type: string
+            outputParameters:
+              - name: facets
+                in: body
+                path: "$.facets"
+                type: object
+      - name: "get-entity-relations"
+        path: "/api/catalog/entities/by-name/{entity_ref}/relations"
+        operations:
+          - method: GET
+            name: "get-entity-relations"
+            inputParameters:
+              - name: entity_ref
+                in: path
+                type: string
+              - name: relation
+                in: query
+                type: string
+            outputParameters:
+              - name: relations
+                in: body
+                path: "$.relations"
+                type: array
+              - name: count
+                in: body
+                path: "$.total"
+                type: integer
+      - name: "get-entity-scorecards"
+        path: "/api/catalog/entities/by-name/{entity_ref}/scorecards"
+        operations:
+          - method: GET
+            name: "get-entity-scorecards"
+            inputParameters:
+              - name: entity_ref
+                in: path
+                type: string
+            outputParameters:
+              - name: scorecards
+                in: body
+                path: "$.scorecards"
+                type: object
+      - name: "get-relation-counts"
+        path: "/api/catalog/relations/counts"
+        operations:
+          - method: POST
+            name: "get-relation-counts"
+            inputParameters:
+              - name: entities
+                in: body
+                type: array
+              - name: relation
+                in: body
+                type: string
+            outputParameters:
+              - name: counts
+                in: body
+                path: "$.counts"
+                type: array
+      - name: "get-scorecards-batch"
+        path: "/api/catalog/scorecards/batch"
+        operations:
+          - method: POST
+            name: "get-scorecards-batch"
+            inputParameters:
+              - name: entities
+                in: body
+                type: array
+            outputParameters:
+              - name: scorecards
+                in: body
+                path: "$.scorecards"
+                type: array
+      - name: "get-entity-owners"
+        path: "/api/catalog/entities/owners"
+        operations:
+          - method: POST
+            name: "get-entity-owners"
+            inputParameters:
+              - name: entities
+                in: body
+                type: array
+            outputParameters:
+              - name: owners
+                in: body
+                path: "$.owners"
+                type: array
+      - name: "get-entity-annotations"
+        path: "/api/catalog/entities"
+        operations:
+          - method: GET
+            name: "get-entity-annotations"
+            inputParameters:
+              - name: filter
+                in: query
+                type: string
+              - name: annotations
+                in: query
+                type: string
+            outputParameters:
+              - name: entities
+                in: body
+                path: "$.items"
+                type: array
+      - name: "get-entities-without-spec"
+        path: "/api/catalog/entities"
+        operations:
+          - method: GET
+            name: "get-entities-without-spec"
+            inputParameters:
+              - name: domain
+                in: query
+                type: string
+            outputParameters:
+              - name: entities
+                in: body
+                path: "$.items"
+                type: array
+      - name: "get-all-consumption-relations"
+        path: "/api/catalog/relations"
+        operations:
+          - method: GET
+            name: "get-all-consumption-relations"
+            inputParameters:
+              - name: kind
+                in: query
+                type: string
+            outputParameters:
+              - name: relations
+                in: body
+                path: "$.relations"
+                type: array
+      - name: "register-entity"
+        path: "/api/catalog/entities"
+        operations:
+          - method: POST
+            name: "register-entity"
+            inputParameters:
+              - name: kind
+                in: body
+                type: string
+              - name: metadata
+                in: body
+                type: object
+            outputParameters:
+              - name: entity
+                in: body
+                path: "$"
+                type: object
